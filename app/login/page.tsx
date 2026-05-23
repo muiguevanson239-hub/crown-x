@@ -1,148 +1,142 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import AppShell from "@/components/layout/AppShell";
+import { useRouter } from "next/navigation";
 
-type Reminder = {
-  id: string;
-  customer_id: string;
-  note: string;
-  remind_at: string;
-  done: boolean;
-};
+export default function LoginPage() {
+  const router = useRouter();
 
-type Customer = {
-  id: string;
-  name: string;
-  tag: string;
-};
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [mode, setMode] = useState<"login" | "signup">("login");
+  const [error, setError] = useState("");
 
-export default function Dashboard() {
-  const [reminders, setReminders] = useState<Reminder[]>([]);
-  const [customers, setCustomers] = useState<Customer[]>([]);
+  const handleAuth = async () => {
+    setLoading(true);
+    setError("");
 
-  useEffect(() => {
-    load();
-  }, []);
+    const action =
+      mode === "login"
+        ? supabase.auth.signInWithPassword({
+            email,
+            password,
+          })
+        : supabase.auth.signUp({
+            email,
+            password,
+          });
 
-  const load = async () => {
-    const { data: userData } = await supabase.auth.getUser();
-    const user = userData.user;
+    const { error } = await action;
 
-    if (!user) return;
+    setLoading(false);
 
-    await Promise.all([
-      fetchReminders(user.id),
-      fetchCustomers(user.id),
-    ]);
+    if (error) {
+      setError(error.message);
+      return;
+    }
+
+    router.push("/dashboard");
+    router.refresh();
   };
-
-  const fetchReminders = async (userId: string) => {
-    const { data } = await supabase
-      .from("customer_reminders")
-      .select("*")
-      .eq("done", false)
-      .order("remind_at", { ascending: true });
-
-    setReminders((data as Reminder[]) || []);
-  };
-
-  const fetchCustomers = async (userId: string) => {
-    const { data } = await supabase
-      .from("customers")
-      .select("id, name, tag")
-      .eq("user_id", userId);
-
-    setCustomers((data as Customer[]) || []);
-  };
-
-  const now = new Date();
-
-  const overdue = reminders.filter(
-    (r) => new Date(r.remind_at) < now
-  );
-
-  const today = reminders.filter((r) => {
-    const d = new Date(r.remind_at);
-    return d.toDateString() === now.toDateString();
-  });
-
-  const vipCustomers = customers.filter((c) => c.tag === "vip");
 
   return (
-    <AppShell>
-      <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+    <div style={container}>
+      <div style={card}>
+        <h1 style={{ marginBottom: 5 }}>🚀 Crown X</h1>
+        <p style={{ marginBottom: 20, color: "#64748b" }}>
+          {mode === "login" ? "Welcome back" : "Create your account"}
+        </p>
 
-        <h1>Dashboard 🧠</h1>
+        <input
+          placeholder="Email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          style={input}
+        />
 
-        {/* OVERDUE */}
-        <div style={box}>
-          <h3>🚨 Overdue Follow-ups</h3>
+        <input
+          placeholder="Password"
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          style={input}
+        />
 
-          {overdue.length === 0 ? (
-            <p style={muted}>No overdue tasks</p>
-          ) : (
-            overdue.map((r) => (
-              <div key={r.id} style={card}>
-                {r.note}
-              </div>
-            ))
-          )}
-        </div>
+        {error && <p style={errorStyle}>{error}</p>}
 
-        {/* TODAY */}
-        <div style={box}>
-          <h3>📅 Today’s Tasks</h3>
+        <button onClick={handleAuth} style={button} disabled={loading}>
+          {loading
+            ? "Processing..."
+            : mode === "login"
+            ? "Login"
+            : "Sign Up"}
+        </button>
 
-          {today.length === 0 ? (
-            <p style={muted}>No tasks for today</p>
-          ) : (
-            today.map((r) => (
-              <div key={r.id} style={card}>
-                {r.note}
-              </div>
-            ))
-          )}
-        </div>
-
-        {/* VIP INSIGHT */}
-        <div style={box}>
-          <h3>⭐ VIP Customers</h3>
-
-          {vipCustomers.length === 0 ? (
-            <p style={muted}>No VIP customers</p>
-          ) : (
-            vipCustomers.map((c) => (
-              <div key={c.id} style={card}>
-                {c.name}
-              </div>
-            ))
-          )}
-        </div>
-
+        <p
+          style={switchText}
+          onClick={() =>
+            setMode(mode === "login" ? "signup" : "login")
+          }
+        >
+          {mode === "login"
+            ? "No account? Sign up"
+            : "Already have an account? Login"}
+        </p>
       </div>
-    </AppShell>
+    </div>
   );
 }
 
-/* STYLES */
+/* ===== STYLES ===== */
 
-const box: React.CSSProperties = {
-  background: "white",
-  padding: 20,
-  borderRadius: 12,
+const container: React.CSSProperties = {
+  height: "100vh",
   display: "flex",
-  flexDirection: "column",
-  gap: 10,
+  justifyContent: "center",
+  alignItems: "center",
+  background: "linear-gradient(135deg, #0f172a, #1e293b)",
+  fontFamily: "sans-serif",
 };
 
 const card: React.CSSProperties = {
-  background: "#f1f5f9",
-  padding: 10,
-  borderRadius: 8,
+  width: 360,
+  background: "white",
+  padding: 25,
+  borderRadius: 14,
+  display: "flex",
+  flexDirection: "column",
+  gap: 12,
+  boxShadow: "0 10px 30px rgba(0,0,0,0.2)",
 };
 
-const muted: React.CSSProperties = {
-  color: "#64748b",
+const input: React.CSSProperties = {
+  padding: 12,
+  borderRadius: 10,
+  border: "1px solid #e2e8f0",
+  outline: "none",
+};
+
+const button: React.CSSProperties = {
+  padding: 12,
+  borderRadius: 10,
+  border: "none",
+  background: "#0ea5e9",
+  color: "white",
+  fontWeight: "bold",
+  cursor: "pointer",
+};
+
+const errorStyle: React.CSSProperties = {
+  color: "#ef4444",
+  fontSize: 13,
+};
+
+const switchText: React.CSSProperties = {
+  marginTop: 5,
+  fontSize: 13,
+  color: "#0ea5e9",
+  cursor: "pointer",
+  textAlign: "center",
 };

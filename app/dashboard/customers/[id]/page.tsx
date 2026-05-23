@@ -2,341 +2,178 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { useAuth } from "@/lib/useAuth";
 import AppShell from "@/components/layout/AppShell";
-
-/* ================= TYPES ================= */
 
 type Customer = {
   id: string;
   name: string;
-  phone: string;
   tag: string;
-  created_at: string;
 };
 
-type Note = {
-  id: string;
-  customer_id: string;
-  content: string;
-  created_at: string;
-};
+export default function CustomersPage() {
+  const { user, loading } = useAuth();
 
-type Reminder = {
-  id: string;
-  customer_id: string;
-  note: string;
-  remind_at: string;
-  done: boolean;
-  created_at: string;
-};
-
-/* ================= PAGE ================= */
-
-export default function CustomerProfile({
-  params,
-}: {
-  params: { id: string };
-}) {
-  const [customer, setCustomer] = useState<Customer | null>(null);
-
-  const [note, setNote] = useState("");
-  const [notes, setNotes] = useState<Note[]>([]);
-
-  const [reminderText, setReminderText] = useState("");
-  const [remindAt, setRemindAt] = useState("");
-  const [reminders, setReminders] = useState<Reminder[]>([]);
-
-  const [loading, setLoading] = useState(true);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [name, setName] = useState("");
+  const [tag, setTag] = useState("regular");
+  const [loadingData, setLoadingData] = useState(true);
 
   useEffect(() => {
-    load();
-  }, []);
+    if (user) loadCustomers(user.id);
+  }, [user]);
 
+  const loadCustomers = async (userId: string) => {
+    setLoadingData(true);
 
-  const load = async () => {
-    setLoading(true);
-    await Promise.all([
-      fetchCustomer(),
-      fetchNotes(),
-      fetchReminders(),
-    ]);
-    setLoading(false);
-  };
-
-  /* ================= FETCH CUSTOMER ================= */
-
-  const fetchCustomer = async () => {
     const { data } = await supabase
       .from("customers")
       .select("*")
-      .eq("id", params.id)
-      .single();
+      .eq("user_id", userId);
 
-    if (data) setCustomer(data as Customer);
+    setCustomers((data as Customer[]) || []);
+    setLoadingData(false);
   };
 
-  /* ================= FETCH NOTES ================= */
+  const addCustomer = async () => {
+    if (!user) return;
 
-  const fetchNotes = async () => {
-    const { data } = await supabase
-      .from("customer_notes")
-      .select("*")
-      .eq("customer_id", params.id)
-      .order("created_at", { ascending: false });
+    const { data, error } = await supabase
+      .from("customers")
+      .insert([
+        {
+          name,
+          tag,
+          user_id: user.id,
+        },
+      ])
+      .select();
 
-    setNotes((data as Note[]) || []);
+    if (!error && data) {
+      setCustomers([...customers, ...(data as Customer[])]);
+      setName("");
+      setTag("regular");
+    }
   };
 
-  /* ================= FETCH REMINDERS ================= */
+  const deleteCustomer = async (id: string) => {
+    await supabase.from("customers").delete().eq("id", id);
 
-  const fetchReminders = async () => {
-    const { data } = await supabase
-      .from("customer_reminders")
-      .select("*")
-      .eq("customer_id", params.id)
-      .order("created_at", { ascending: false });
-
-    setReminders((data as Reminder[]) || []);
+    setCustomers(customers.filter((c) => c.id !== id));
   };
 
-  /* ================= ACTIONS ================= */
-
-  const addNote = async () => {
-    if (!note.trim()) return;
-
-    await supabase.from("customer_notes").insert([
-      {
-        customer_id: params.id,
-        content: note,
-      },
-    ]);
-
-    setNote("");
-    fetchNotes();
-  };
-
-  const addReminder = async () => {
-    if (!reminderText.trim() || !remindAt) return;
-
-    await supabase.from("customer_reminders").insert([
-      {
-        customer_id: params.id,
-        note: reminderText,
-        remind_at: remindAt,
-        done: false,
-      },
-    ]);
-
-    setReminderText("");
-    setRemindAt("");
-    fetchReminders();
-  };
-
-  const markDone = async (id: string) => {
-    await supabase
-      .from("customer_reminders")
-      .update({ done: true })
-      .eq("id", id);
-
-    fetchReminders();
-  };
-
-  /* ================= LOADING ================= */
-
-  if (loading) {
-    return (
-      <AppShell>
-        <p>Loading customer...</p>
-      </AppShell>
-    );
+  if (loading || !user) {
+    return <div style={loadingStyle}>Loading...</div>;
   }
-
-  if (!customer) {
-    return (
-      <AppShell>
-        <p>Customer not found.</p>
-      </AppShell>
-    );
-  }
-
-  /* ================= UI ================= */
 
   return (
     <AppShell>
-      <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      <div style={container}>
+        <h1>👥 Customers</h1>
 
-        {/* CUSTOMER HEADER */}
-        <div style={card}>
-          <h1 style={{ margin: 0 }}>{customer.name}</h1>
-          <p style={{ margin: 0 }}>{customer.phone}</p>
-
-          <span style={tag}>
-            {customer.tag.toUpperCase()}
-          </span>
-        </div>
-
-        {/* ADD NOTE */}
-        <div style={box}>
-          <h3>📝 Add Note</h3>
-
-          <textarea
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            style={textarea}
-            placeholder="Write CRM notes..."
-          />
-
-          <button onClick={addNote} style={button}>
-            Save Note
-          </button>
-        </div>
-
-        {/* NOTES LIST */}
-        <div style={box}>
-          <h3>📒 Notes Timeline</h3>
-
-          {notes.length === 0 && (
-            <p style={{ color: "#64748b" }}>No notes yet</p>
-          )}
-
-          {notes.map((n) => (
-            <div key={n.id} style={item}>
-              {n.content}
-            </div>
-          ))}
-        </div>
-
-        {/* ADD REMINDER */}
-        <div style={box}>
-          <h3>⏰ Add Follow-up Reminder</h3>
-
+        {/* ADD CUSTOMER */}
+        <div style={form}>
           <input
-            placeholder="Reminder text"
-            value={reminderText}
-            onChange={(e) => setReminderText(e.target.value)}
+            placeholder="Customer name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
             style={input}
           />
 
-          <input
-            type="datetime-local"
-            value={remindAt}
-            onChange={(e) => setRemindAt(e.target.value)}
+          <select
+            value={tag}
+            onChange={(e) => setTag(e.target.value)}
             style={input}
-          />
+          >
+            <option value="regular">Regular</option>
+            <option value="vip">VIP</option>
+          </select>
 
-          <button onClick={addReminder} style={button}>
-            Add Reminder
+          <button onClick={addCustomer} style={button}>
+            Add Customer
           </button>
         </div>
 
-        {/* REMINDERS LIST */}
-        <div style={box}>
-          <h3>📅 Reminders</h3>
+        {/* LIST */}
+        {loadingData ? (
+          <p>Loading customers...</p>
+        ) : (
+          <div style={list}>
+            {customers.map((c) => (
+              <div key={c.id} style={card}>
+                <div>
+                  <strong>{c.name}</strong>
+                  <p style={{ margin: 0 }}>{c.tag}</p>
+                </div>
 
-          {reminders.length === 0 && (
-            <p style={{ color: "#64748b" }}>No reminders set</p>
-          )}
-
-          {reminders.map((r) => (
-            <div key={r.id} style={reminderCard}>
-              <div>
-                <p style={{ margin: 0 }}>{r.note}</p>
-                <small style={{ color: "#64748b" }}>
-                  {r.remind_at}
-                </small>
-              </div>
-
-              {!r.done ? (
                 <button
-                  onClick={() => markDone(r.id)}
-                  style={smallBtn}
+                  onClick={() => deleteCustomer(c.id)}
+                  style={deleteBtn}
                 >
-                  Done
+                  Delete
                 </button>
-              ) : (
-                <span style={{ color: "#10b981" }}>✓ Done</span>
-              )}
-            </div>
-          ))}
-        </div>
-
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </AppShell>
   );
 }
 
-/* ================= STYLES ================= */
+/* ================= UI ================= */
 
-const card: React.CSSProperties = {
-  background: "white",
-  padding: 20,
-  borderRadius: 12,
+const container: React.CSSProperties = {
   display: "flex",
   flexDirection: "column",
-  gap: 5,
+  gap: 20,
 };
 
-const tag: React.CSSProperties = {
-  marginTop: 10,
-  background: "#0f172a",
-  color: "white",
-  padding: "4px 10px",
-  borderRadius: 20,
-  fontSize: 12,
-  width: "fit-content",
-};
-
-const box: React.CSSProperties = {
-  background: "white",
-  padding: 20,
-  borderRadius: 12,
+const form: React.CSSProperties = {
   display: "flex",
-  flexDirection: "column",
   gap: 10,
-};
-
-const textarea: React.CSSProperties = {
-  minHeight: 80,
-  padding: 10,
-  borderRadius: 8,
-  border: "1px solid #e2e8f0",
+  flexWrap: "wrap",
 };
 
 const input: React.CSSProperties = {
   padding: 10,
   borderRadius: 8,
-  border: "1px solid #e2e8f0",
+  border: "1px solid #ddd",
 };
 
 const button: React.CSSProperties = {
-  padding: 10,
-  borderRadius: 8,
-  border: "none",
-  background: "#0f172a",
+  padding: "10px 15px",
+  background: "#0ea5e9",
   color: "white",
+  border: "none",
+  borderRadius: 8,
   cursor: "pointer",
 };
 
-const item: React.CSSProperties = {
-  padding: 10,
-  background: "#f1f5f9",
-  borderRadius: 8,
+const list: React.CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  gap: 10,
 };
 
-const reminderCard: React.CSSProperties = {
+const card: React.CSSProperties = {
+  background: "white",
+  padding: 15,
+  borderRadius: 10,
   display: "flex",
   justifyContent: "space-between",
   alignItems: "center",
-  padding: 10,
-  background: "#f8fafc",
-  borderRadius: 8,
 };
 
-const smallBtn: React.CSSProperties = {
-  padding: "5px 10px",
-  borderRadius: 6,
-  border: "none",
-  background: "#10b981",
+const deleteBtn: React.CSSProperties = {
+  background: "#ef4444",
   color: "white",
+  border: "none",
+  padding: "8px 10px",
+  borderRadius: 6,
   cursor: "pointer",
+};
+
+const loadingStyle: React.CSSProperties = {
+  padding: 40,
 };
