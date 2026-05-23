@@ -8,22 +8,28 @@ export function useAuth() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let mounted = true;
+
     const getUser = async () => {
       const { data } = await supabase.auth.getUser();
 
-      setUser(data.user);
-      setLoading(false);
+      if (mounted) {
+        setUser(data?.user ?? null);
+        setLoading(false);
+      }
     };
 
     getUser();
 
     const { data: listener } = supabase.auth.onAuthStateChange(
       (_event, session) => {
-        setUser(session?.user || null);
+        setUser(session?.user ?? null);
+        setLoading(false);
       }
     );
 
     return () => {
+      mounted = false;
       listener.subscription.unsubscribe();
     };
   }, []);
