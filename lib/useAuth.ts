@@ -10,16 +10,29 @@ export function useAuth() {
   useEffect(() => {
     let mounted = true;
 
-    const getUser = async () => {
-      const { data } = await supabase.auth.getUser();
+    const init = async () => {
+      try {
+        const { data, error } = await supabase.auth.getUser();
 
-      if (mounted) {
-        setUser(data?.user ?? null);
-        setLoading(false);
+        if (error) {
+          console.log("Auth error:", error.message);
+        }
+
+        if (mounted) {
+          setUser(data?.user ?? null);
+          setLoading(false);
+        }
+      } catch (err) {
+        console.log("Auth crash:", err);
+
+        if (mounted) {
+          setUser(null);
+          setLoading(false);
+        }
       }
     };
 
-    getUser();
+    init();
 
     const { data: listener } = supabase.auth.onAuthStateChange(
       (_event, session) => {
