@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { useRouter } from "next/navigation";
 
@@ -9,43 +9,84 @@ export default function LoginPage() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
   const [mode, setMode] = useState<"login" | "signup">("login");
+
+  const [loading, setLoading] = useState(false);
+  const [checking, setChecking] = useState(true);
   const [error, setError] = useState("");
+
+  // 🧠 Prevent logged-in users from seeing login page
+  useEffect(() => {
+    const checkUser = async () => {
+      const { data } = await supabase.auth.getUser();
+
+      if (data.user) {
+        router.replace("/dashboard");
+      } else {
+        setChecking(false);
+      }
+    };
+
+    checkUser();
+  }, []);
 
   const handleAuth = async () => {
     setLoading(true);
     setError("");
 
-    const action =
-      mode === "login"
-        ? supabase.auth.signInWithPassword({
-            email,
-            password,
-          })
-        : supabase.auth.signUp({
-            email,
-            password,
-          });
+    try {
+      let result;
 
-    const { error } = await action;
+      if (mode === "login") {
+        result = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
+      } else {
+        result = await supabase.auth.signUp({
+          email,
+          password,
+        });
+      }
 
-    setLoading(false);
+      const { error } = result;
 
-    if (error) {
-      setError(error.message);
-      return;
+      if (error) {
+        setError(error.message);
+        setLoading(false);
+        return;
+      }
+
+      // 🧠 Wait for Supabase session to fully register
+      setTimeout(async () => {
+        const { data } = await supabase.auth.getUser();
+
+        if (data.user) {
+          router.replace("/dashboard");
+        } else {
+          router.replace("/login");
+        }
+      }, 500);
+    } catch (err: any) {
+      setError(err.message || "Something went wrong");
     }
 
-    router.push("/dashboard");
-    router.refresh();
+    setLoading(false);
   };
+
+  if (checking) {
+    return (
+      <div style={loadingStyle}>
+        Loading...
+      </div>
+    );
+  }
 
   return (
     <div style={container}>
       <div style={card}>
-        <h1 style={{ marginBottom: 5 }}>🚀 Crown X</h1>
-        <p style={{ marginBottom: 20, color: "#64748b" }}>
+        <h1>🚀 Crown X</h1>
+        <p style={{ color: "#64748b" }}>
           {mode === "login" ? "Welcome back" : "Create your account"}
         </p>
 
@@ -64,7 +105,7 @@ export default function LoginPage() {
           style={input}
         />
 
-        {error && <p style={errorStyle}>{error}</p>}
+        {error && <p style={errorText}>{error}</p>}
 
         <button onClick={handleAuth} style={button} disabled={loading}>
           {loading
@@ -75,10 +116,10 @@ export default function LoginPage() {
         </button>
 
         <p
-          style={switchText}
           onClick={() =>
             setMode(mode === "login" ? "signup" : "login")
           }
+          style={switchText}
         >
           {mode === "login"
             ? "No account? Sign up"
@@ -89,14 +130,14 @@ export default function LoginPage() {
   );
 }
 
-/* ===== STYLES ===== */
+/* ================= UI ================= */
 
 const container: React.CSSProperties = {
   height: "100vh",
   display: "flex",
   justifyContent: "center",
   alignItems: "center",
-  background: "linear-gradient(135deg, #0f172a, #1e293b)",
+  background: "linear-gradient(135deg,#0f172a,#1e293b)",
   fontFamily: "sans-serif",
 };
 
@@ -108,14 +149,13 @@ const card: React.CSSProperties = {
   display: "flex",
   flexDirection: "column",
   gap: 12,
-  boxShadow: "0 10px 30px rgba(0,0,0,0.2)",
+  boxShadow: "0 20px 40px rgba(0,0,0,0.2)",
 };
 
 const input: React.CSSProperties = {
   padding: 12,
   borderRadius: 10,
   border: "1px solid #e2e8f0",
-  outline: "none",
 };
 
 const button: React.CSSProperties = {
@@ -128,15 +168,21 @@ const button: React.CSSProperties = {
   cursor: "pointer",
 };
 
-const errorStyle: React.CSSProperties = {
-  color: "#ef4444",
+const errorText: React.CSSProperties = {
+  color: "red",
   fontSize: 13,
 };
 
 const switchText: React.CSSProperties = {
-  marginTop: 5,
+  textAlign: "center",
   fontSize: 13,
   color: "#0ea5e9",
   cursor: "pointer",
-  textAlign: "center",
+};
+
+const loadingStyle: React.CSSProperties = {
+  height: "100vh",
+  display: "flex",
+  justifyContent: "center",
+  alignItems: "center",
 };
