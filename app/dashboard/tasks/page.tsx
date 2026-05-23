@@ -1,227 +1,117 @@
-"use client";
+import Link from "next/link";
 
-import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabaseClient";
-import { useAuth } from "@/lib/useAuth";
-import AppShell from "@/components/layout/AppShell";
-
-type Task = {
-  id: string;
-  title: string;
-  due_date: string;
-  done: boolean;
-};
-
-export default function TasksPage() {
-  const { user, loading } = useAuth();
-
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [title, setTitle] = useState("");
-  const [dueDate, setDueDate] = useState("");
-  const [loadingData, setLoadingData] = useState(true);
-
-  useEffect(() => {
-    if (user) loadTasks(user.id);
-  }, [user]);
-
-  const loadTasks = async (userId: string) => {
-    setLoadingData(true);
-
-    const { data } = await supabase
-      .from("tasks")
-      .select("*")
-      .eq("user_id", userId)
-      .order("due_date", { ascending: true });
-
-    setTasks((data as Task[]) || []);
-    setLoadingData(false);
-  };
-
-  const addTask = async () => {
-    if (!user) return;
-
-    const { data, error } = await supabase
-      .from("tasks")
-      .insert([
-        {
-          title,
-          due_date: dueDate,
-          done: false,
-          user_id: user.id,
-        },
-      ])
-      .select();
-
-    if (!error && data) {
-      setTasks([...tasks, ...(data as Task[])]);
-      setTitle("");
-      setDueDate("");
-    }
-  };
-
-  const toggleDone = async (task: Task) => {
-    await supabase
-      .from("tasks")
-      .update({ done: !task.done })
-      .eq("id", task.id);
-
-    setTasks(
-      tasks.map((t) =>
-        t.id === task.id ? { ...t, done: !t.done } : t
-      )
-    );
-  };
-
-  const deleteTask = async (id: string) => {
-    await supabase.from("tasks").delete().eq("id", id);
-
-    setTasks(tasks.filter((t) => t.id !== id));
-  };
-
-  if (loading || !user) {
-    return <div style={loadingStyle}>Loading...</div>;
-  }
-
+export default function HomePage() {
   return (
-    <AppShell>
-      <div style={container}>
-        <h1>✅ Tasks</h1>
+    <div style={container}>
+      <div style={hero}>
+        <h1 style={title}>🚀 Crown X</h1>
 
-        {/* ADD TASK */}
-        <div style={form}>
-          <input
-            placeholder="Task title"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            style={input}
-          />
+        <p style={subtitle}>
+          A modern CRM SaaS for managing customers, tasks, and growth analytics.
+        </p>
 
-          <input
-            type="date"
-            value={dueDate}
-            onChange={(e) => setDueDate(e.target.value)}
-            style={input}
-          />
+        <div style={buttons}>
+          <Link href="/login" style={primaryBtn}>
+            Get Started
+          </Link>
 
-          <button onClick={addTask} style={button}>
-            Add Task
-          </button>
+          <Link href="/dashboard" style={secondaryBtn}>
+            Go to Dashboard
+          </Link>
         </div>
 
-        {/* TASK LIST */}
-        {loadingData ? (
-          <p>Loading tasks...</p>
-        ) : (
-          <div style={list}>
-            {tasks.map((task) => (
-              <div key={task.id} style={card}>
-                <div>
-                  <strong
-                    style={{
-                      textDecoration: task.done
-                        ? "line-through"
-                        : "none",
-                    }}
-                  >
-                    {task.title}
-                  </strong>
+        <div style={features}>
+          <Feature text="⚡ Fast CRM workflows" />
+          <Feature text="📊 Real-time analytics dashboard" />
+          <Feature text="👥 Customer management system" />
+          <Feature text="🔐 Secure authentication (Supabase)" />
+        </div>
 
-                  <p style={{ margin: 0, fontSize: 12 }}>
-                    Due: {task.due_date || "No date"}
-                  </p>
-                </div>
-
-                <div style={actions}>
-                  <button
-                    onClick={() => toggleDone(task)}
-                    style={doneBtn}
-                  >
-                    {task.done ? "Undo" : "Done"}
-                  </button>
-
-                  <button
-                    onClick={() => deleteTask(task.id)}
-                    style={deleteBtn}
-                  >
-                    Delete
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+        <footer style={footer}>
+          From <span style={symbol}>∞</span> Nexor X
+        </footer>
       </div>
-    </AppShell>
+    </div>
   );
 }
 
 /* ================= UI ================= */
 
+function Feature({ text }: { text: string }) {
+  return <div style={feature}>{text}</div>;
+}
+
 const container: React.CSSProperties = {
+  height: "100vh",
   display: "flex",
-  flexDirection: "column",
-  gap: 20,
+  justifyContent: "center",
+  alignItems: "center",
+  background: "#0b1220",
+  fontFamily: "Inter, sans-serif",
+  color: "#e2e8f0",
+  padding: 20,
 };
 
-const form: React.CSSProperties = {
+const hero: React.CSSProperties = {
+  maxWidth: 700,
+  textAlign: "center",
+};
+
+const title: React.CSSProperties = {
+  fontSize: 48,
+  marginBottom: 10,
+};
+
+const subtitle: React.CSSProperties = {
+  fontSize: 16,
+  color: "#94a3b8",
+  marginBottom: 30,
+};
+
+const buttons: React.CSSProperties = {
   display: "flex",
-  gap: 10,
-  flexWrap: "wrap",
+  gap: 12,
+  justifyContent: "center",
+  marginBottom: 30,
 };
 
-const input: React.CSSProperties = {
-  padding: 10,
-  borderRadius: 8,
-  border: "1px solid #ddd",
-};
-
-const button: React.CSSProperties = {
-  padding: "10px 15px",
+const primaryBtn: React.CSSProperties = {
+  padding: "12px 18px",
   background: "#0ea5e9",
   color: "white",
-  border: "none",
-  borderRadius: 8,
-  cursor: "pointer",
-};
-
-const list: React.CSSProperties = {
-  display: "flex",
-  flexDirection: "column",
-  gap: 10,
-};
-
-const card: React.CSSProperties = {
-  background: "white",
-  padding: 15,
   borderRadius: 10,
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
+  textDecoration: "none",
+  fontWeight: 600,
 };
 
-const actions: React.CSSProperties = {
-  display: "flex",
-  gap: 8,
-};
-
-const doneBtn: React.CSSProperties = {
-  background: "#22c55e",
+const secondaryBtn: React.CSSProperties = {
+  padding: "12px 18px",
+  background: "#1e293b",
   color: "white",
-  border: "none",
-  padding: "8px 10px",
-  borderRadius: 6,
-  cursor: "pointer",
+  borderRadius: 10,
+  textDecoration: "none",
 };
 
-const deleteBtn: React.CSSProperties = {
-  background: "#ef4444",
-  color: "white",
-  border: "none",
-  padding: "8px 10px",
-  borderRadius: 6,
-  cursor: "pointer",
+const features: React.CSSProperties = {
+  display: "grid",
+  gap: 10,
+  marginTop: 20,
 };
 
-const loadingStyle: React.CSSProperties = {
-  padding: 40,
+const feature: React.CSSProperties = {
+  padding: 10,
+  background: "#0f172a",
+  border: "1px solid #1e293b",
+  borderRadius: 10,
+  fontSize: 14,
+};
+
+const footer: React.CSSProperties = {
+  marginTop: 40,
+  fontSize: 12,
+  color: "#64748b",
+};
+
+const symbol: React.CSSProperties = {
+  color: "#38bdf8",
 };
